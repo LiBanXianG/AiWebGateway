@@ -1,0 +1,17 @@
+server:
+  host: 127.0.0.1
+  port: 8000
+
+router:
+  fail_threshold: 3
+  recovery_interval: 10
+
+deepseek:
+  accounts:
+    - id: "acc-1"
+      token: "Bearer ÄãµÄToken"
+      cookie: "ÄãµÄCookie"
+
+rate_limit:
+  max_requests_per_minute: 30
+  max_concurrent: 5

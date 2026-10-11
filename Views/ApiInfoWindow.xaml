@@ -1,0 +1,50 @@
+﻿<Window x:Class="AiWebGateway.Views.ApiInfoWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="本地 API 配置" Width="640" Height="600"
+        WindowStartupLocation="CenterScreen">
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" FontSize="16" FontWeight="Bold"
+                   Text="本地 OpenAI 兼容 API" Margin="0,0,0,16"/>
+
+        <StackPanel Grid.Row="1">
+            <TextBlock Text="API 地址 (Base URL)" FontWeight="Bold" Margin="0,0,0,4"/>
+            <DockPanel>
+                <Button DockPanel.Dock="Right" Content="复制" Padding="12,4" Margin="8,0,0,0"
+                        Click="CopyUrl_Click"/>
+                <TextBox x:Name="UrlBox" IsReadOnly="True" Padding="6" Height="28"
+                         VerticalContentAlignment="Center" FontFamily="Consolas"/>
+            </DockPanel>
+
+            <TextBlock Text="API Key" FontWeight="Bold" Margin="0,12,0,4"/>
+            <DockPanel>
+                <Button DockPanel.Dock="Right" Content="复制" Padding="12,4" Margin="8,0,0,0"
+                        Click="CopyKey_Click"/>
+                <TextBox x:Name="KeyBox" IsReadOnly="True" Padding="6" Height="28"
+                         VerticalContentAlignment="Center" FontFamily="Consolas"/>
+            </DockPanel>
+
+            <TextBlock Text="可用模型" FontWeight="Bold" Margin="0,12,0,4"/>
+            <TextBox x:Name="ModelBox" IsReadOnly="True" Padding="6" Height="28"
+                     VerticalContentAlignment="Center" FontFamily="Consolas"/>
+        </StackPanel>
+
+        <GroupBox Grid.Row="2" Header="客户端接入示例" Margin="0,16,0,0" Padding="8">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <TextBlock x:Name="ExampleBox" FontFamily="Consolas" FontSize="12"
+                           TextWrapping="Wrap"/>
+            </ScrollViewer>
+        </GroupBox>
+
+        <TextBlock Grid.Row="3" TextWrapping="Wrap" Foreground="Gray"
+                   VerticalAlignment="Bottom" Margin="0,16,0,0" FontSize="11"
+                   Text="提示：以上配置可填入任何支持 OpenAI 接口的工具（ChatBox、NextChat、LobeChat、Cursor、Continue 等）。本 API 仅监听本机 127.0.0.1，其他设备无法访问。"/>
+    </Grid>
+</Window>

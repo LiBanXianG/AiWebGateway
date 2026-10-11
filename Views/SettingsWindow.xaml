@@ -1,0 +1,101 @@
+﻿<Window x:Class="AiWebGateway.Views.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:AiWebGateway.Views"
+        Title="AI Web Gateway - 配置" Width="760" Height="560"
+        WindowStartupLocation="CenterScreen">
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <GroupBox Header="服务器设置" Grid.Row="0" Margin="0,0,0,8">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="120"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="监听地址:" VerticalAlignment="Center"
+                           Margin="0,0,8,0"/>
+                <TextBox x:Name="HostBox" Grid.Column="1" Margin="0,0,16,0"
+                         Height="26" VerticalContentAlignment="Center"/>
+                <TextBlock Grid.Column="2" Text="端口:"
+                           VerticalAlignment="Center" Margin="0,0,8,0"/>
+                <TextBox x:Name="PortBox" Grid.Column="3"
+                         Height="26" VerticalContentAlignment="Center"/>
+            </Grid>
+        </GroupBox>
+
+        <GroupBox Header="双模降级策略" Grid.Row="1" Margin="0,0,0,8">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="逆向失败阈值:" VerticalAlignment="Center"
+                           Margin="0,0,8,0"/>
+                <TextBox x:Name="FailThresholdBox" Grid.Column="1" Margin="0,0,16,0"
+                         Height="26" VerticalContentAlignment="Center"/>
+                <TextBlock Grid.Column="2" Text="恢复探测间隔:"
+                           VerticalAlignment="Center" Margin="0,0,8,0"/>
+                <TextBox x:Name="RecoveryIntervalBox" Grid.Column="3"
+                         Height="26" VerticalContentAlignment="Center"/>
+            </Grid>
+        </GroupBox>
+
+        <GroupBox Header="DeepSeek 账号池" Grid.Row="2" Margin="0,0,0,8">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <DataGrid x:Name="AccountGrid"
+                          AutoGenerateColumns="False"
+                          CanUserAddRows="False"
+                          CanUserDeleteRows="False"
+                          IsReadOnly="True"
+                          SelectionMode="Single"
+                          SelectionUnit="FullRow"
+                          HeadersVisibility="Column"
+                          GridLinesVisibility="Horizontal"
+                          MouseDoubleClick="AccountGrid_MouseDoubleClick">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="ID"
+                                            Binding="{Binding Id}"
+                                            Width="100"/>
+                        <DataGridTextColumn Header="Token（前 40 字符）"
+                                            Binding="{Binding Token, Converter={x:Static local:TruncateConverter.Instance}}"
+                                            Width="*"/>
+                        <DataGridTextColumn Header="Cookie（前 40 字符）"
+                                            Binding="{Binding Cookie, Converter={x:Static local:TruncateConverter.Instance}}"
+                                            Width="2*"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+
+                <StackPanel Grid.Row="1" Orientation="Horizontal"
+                            HorizontalAlignment="Right" Margin="0,8,0,0">
+                    <Button Content="添加账号" Click="AddAccount_Click"
+                            Padding="12,4" Margin="0,0,8,0"/>
+                    <Button Content="编辑选中" Click="EditAccount_Click"
+                            Padding="12,4" Margin="0,0,8,0"/>
+                    <Button Content="删除选中" Click="DeleteAccount_Click"
+                            Padding="12,4"/>
+                </StackPanel>
+            </Grid>
+        </GroupBox>
+
+        <StackPanel Grid.Row="3" Orientation="Horizontal"
+                    HorizontalAlignment="Right" Margin="0,8,0,0">
+            <Button Content="保存配置" Click="Save_Click"
+                    Padding="24,8" FontWeight="Bold"/>
+        </StackPanel>
+    </Grid>
+</Window>

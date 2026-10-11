@@ -1,0 +1,23 @@
+﻿# C# / .NET 编译产物
+bin/
+obj/
+.vs/
+publish/
+*.user
+*.suo
+
+# Python 环境和缓存
+__pycache__/
+*.py[cod]
+envs/
+python_env/
+python_embed/
+*.egg-info/
+
+# 压缩包和发布版本
+releases/
+*.zip
+
+# 系统自带文件
+.DS_Store
+Thumbs.db

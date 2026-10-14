@@ -1,9 +1,12 @@
 ﻿# Python/adapters/deepseek_reverse.py
 import aiohttp
 import json
-from typing import AsyncGenerator
+from typing import AsyncGenerator, Optional
 from .base import UpstreamResponse
 from core.pow_solver import DeepSeekPowSolver
+from core.session_cache import SessionCache
+
+_session_cache = SessionCache(ttl=7200)
 
 _global_pow_solver: DeepSeekPowSolver = None
 _global_http_session: aiohttp.ClientSession = None
@@ -53,6 +56,9 @@ class DeepSeekReverseAdapter:
         self.token = _clean(token)
         self.cookie = _clean(cookie)
         self.pow_solver = _get_global_pow_solver()
+        # 记录本次请求用到的 session_id 与最新 response_message_id
+        self.last_chat_session_id: Optional[str] = None
+        self._last_response_message_id: Optional[int] = None
 
     def _headers(self) -> dict:
         return {
@@ -74,14 +80,11 @@ class DeepSeekReverseAdapter:
         ) as resp:
             text = await resp.text()
             if resp.status != 200:
-                raise ConnectionError(
-                    f"create_session HTTP {resp.status}: {text[:300]}"
-                )
+                raise ConnectionError(f"create_session HTTP {resp.status}: {text[:300]}")
             try:
                 data = json.loads(text)
             except json.JSONDecodeError:
                 raise ConnectionError(f"create_session invalid JSON: {text[:300]}")
-
             sid = _safe_get(data, "data", "biz_data", "id")
             if not sid:
                 raise ConnectionError(
@@ -98,14 +101,11 @@ class DeepSeekReverseAdapter:
         ) as resp:
             text = await resp.text()
             if resp.status != 200:
-                raise ConnectionError(
-                    f"pow_challenge HTTP {resp.status}: {text[:300]}"
-                )
+                raise ConnectionError(f"pow_challenge HTTP {resp.status}: {text[:300]}")
             try:
                 data = json.loads(text)
             except json.JSONDecodeError:
                 raise ConnectionError(f"pow_challenge invalid JSON: {text[:300]}")
-
             ch = _safe_get(data, "data", "biz_data", "challenge")
             if not isinstance(ch, dict):
                 raise ConnectionError(
@@ -124,11 +124,28 @@ class DeepSeekReverseAdapter:
         **kwargs,
     ) -> AsyncGenerator[UpstreamResponse, None]:
         session = await self._get_session()
+        # 只取最后一条 user 消息作为 prompt
         prompt = messages[-1]["content"]
+        self._last_response_message_id = None
 
         try:
-            # 每次都用新 session，历史由 prompt 承载
-            chat_session_id = await self._create_session()
+            # 从缓存复用 chat_session_id + parent_message_id
+            chat_session_id: Optional[str] = None
+            parent_message_id: Optional[int] = None
+
+            if conversation_id:
+                chat_session_id, parent_message_id = _session_cache.get(conversation_id)
+
+            is_new_session = False
+            if not chat_session_id:
+                chat_session_id = await self._create_session()
+                parent_message_id = None
+                is_new_session = True
+                if conversation_id:
+                    _session_cache.set(conversation_id, chat_session_id, None)
+
+            # 记录本次用到的 session
+            self.last_chat_session_id = chat_session_id
 
             challenge_data = await self._get_pow_challenge()
             algorithm = challenge_data.get("algorithm", "DeepSeekHashV1")
@@ -147,12 +164,17 @@ class DeepSeekReverseAdapter:
             headers = self._headers()
             headers["x-ds-pow-response"] = pow_response
 
+            # body 与浏览器抓包一致
             body = {
+                "action": None,
                 "chat_session_id": chat_session_id,
+                "model_type": "default" if is_new_session else None,
+                "parent_message_id": parent_message_id,   # null 或数字
+                "preempt": False,
                 "prompt": prompt,
                 "ref_file_ids": [],
-                "thinking_enabled": bool(thinking_enabled),
                 "search_enabled": bool(search_enabled),
+                "thinking_enabled": bool(thinking_enabled),
             }
 
             async with session.post(
@@ -162,12 +184,19 @@ class DeepSeekReverseAdapter:
             ) as resp:
                 if resp.status != 200:
                     error_text = await resp.text()
+                    # session 失效 → 清缓存，下次重建
+                    if conversation_id and resp.status in (400, 401, 403, 404):
+                        _session_cache.remove(conversation_id)
                     raise ConnectionError(
                         f"completion HTTP {resp.status}: {error_text[:300]}"
                     )
 
                 async for chunk in self._parse_stream(resp):
                     yield chunk
+
+            # 流结束后保存 response_message_id
+            if conversation_id and self._last_response_message_id is not None:
+                _session_cache.update_parent(conversation_id, self._last_response_message_id)
 
         except Exception as e:
             yield UpstreamResponse(
@@ -179,6 +208,7 @@ class DeepSeekReverseAdapter:
         current_type = None
         last_reasoning = ""
         last_content = ""
+        current_event = None
 
         async for line in resp.content:
             buffer += line.decode("utf-8", errors="replace")
@@ -186,13 +216,34 @@ class DeepSeekReverseAdapter:
                 raw_line, buffer = buffer.split("\n", 1)
                 raw_line = raw_line.strip()
 
-                if not raw_line or raw_line.startswith(":") or raw_line.startswith("event:"):
+                if not raw_line:
                     continue
-                if not raw_line.startswith("data:"):
+
+                # 记录 event: 行，识别 ready 帧
+                if raw_line.startswith("event:"):
+                    current_event = raw_line[6:].strip()
                     continue
+
+                if raw_line.startswith(":") or not raw_line.startswith("data:"):
+                    continue
+
                 payload = raw_line[5:].strip()
                 if not payload:
                     continue
+
+                # 捕获 ready 帧里的 response_message_id
+                if current_event == "ready":
+                    try:
+                        r = json.loads(payload)
+                        rmid = r.get("response_message_id")
+                        if isinstance(rmid, int):
+                            self._last_response_message_id = rmid
+                    except json.JSONDecodeError:
+                        pass
+                    current_event = None
+                    continue
+
+                current_event = None
 
                 try:
                     frame = json.loads(payload)
@@ -204,6 +255,10 @@ class DeepSeekReverseAdapter:
 
                 if isinstance(frame.get("v"), dict):
                     resp_obj = frame["v"].get("response", {})
+                    mid = resp_obj.get("message_id")
+                    if isinstance(mid, int) and self._last_response_message_id is None:
+                        self._last_response_message_id = mid
+
                     for frag in resp_obj.get("fragments", []):
                         ftype = frag.get("type")
                         if ftype:

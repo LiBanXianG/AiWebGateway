@@ -25,22 +25,11 @@ def load_config():
 
 
 def messages_to_prompt(messages: list) -> str:
-    parts = []
-    for m in messages:
-        role = (m.get("role") or "user").lower()
-        content = m.get("content") or ""
-        if not content:
-            continue
-        if role == "system":
-            parts.append(f"[System]\n{content}")
-        elif role == "user":
-            parts.append(f"User: {content}")
-        elif role == "assistant":
-            parts.append(f"Assistant: {content}")
-        else:
-            parts.append(f"User: {content}")
-    parts.append("Assistant:")
-    return "\n\n".join(parts)
+    """只取最后一条 user 消息"""
+    for m in reversed(messages):
+        if (m.get("role") or "").lower() == "user":
+            return m.get("content") or ""
+    return ""
 
 
 @router.post("/chat/completions")
@@ -54,13 +43,17 @@ async def chat_completions(request: Request):
     new_session = body.get("new_session", False)
     tools = body.get("tools", [])
 
-    conversation_id = (
+    client_conv_id = (
         request.headers.get("x-conversation-id")
         or body.get("conversation_id")
-        or uuid.uuid4().hex
+        or ""
     )
     if new_session:
         conversation_id = uuid.uuid4().hex
+    elif client_conv_id:
+        conversation_id = client_conv_id
+    else:
+        conversation_id = "api-default"   # 外部 API 共享一个 session
 
     if tools:
         tool_prompt = tools_to_system_prompt(tools)
@@ -88,7 +81,7 @@ async def chat_completions(request: Request):
         model=model,
         thinking_enabled=thinking_enabled,
         search_enabled=search_enabled,
-        conversation_id="",
+        conversation_id=conversation_id,
     ):
         full_content += resp.content
         full_reasoning += resp.reasoning_content
